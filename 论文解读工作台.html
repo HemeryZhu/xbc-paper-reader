@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小白菜读论文 · 事件相机论文工作台</title>
+<script src="https://cdn.jsdelivr.net/npm/markmap-autoloader@0.17.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<style>
+:root{
+  --bg:#f4f6fb; --card:#ffffff; --line:#e5e9f2;
+  --text:#1f2430; --muted:#6b7280; --accent:#4f46e5; --accent2:#6366f1;
+  --ok:#16a34a; --warn:#d97706; --err:#dc2626;
+  --radius:14px; --shadow:0 1px 3px rgba(16,24,40,.06),0 4px 16px rgba(16,24,40,.05);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  background:var(--bg); color:var(--text); font-size:15px; line-height:1.6;
+}
+a{color:var(--accent)}
+header{
+  background:linear-gradient(120deg,#312e81 0%,#4f46e5 55%,#6366f1 100%);
+  color:#fff; padding:20px 28px; display:flex; align-items:center; justify-content:space-between;
+  flex-wrap:wrap; gap:12px; box-shadow:var(--shadow);
+}
+header h1{margin:0; font-size:20px; font-weight:700; letter-spacing:.5px}
+header .sub{margin:4px 0 0; font-size:13px; opacity:.85}
+.header-btns{display:flex; gap:8px; flex-wrap:wrap}
+.btn{
+  border:1px solid transparent; border-radius:9px; padding:8px 14px; font-size:13px;
+  cursor:pointer; background:#fff; color:var(--text); transition:.15s; font-weight:500;
+}
+.btn:hover{transform:translateY(-1px)}
+.btn.ghost{background:rgba(255,255,255,.14); color:#fff; border-color:rgba(255,255,255,.3)}
+.btn.ghost:hover{background:rgba(255,255,255,.24)}
+.btn.primary{background:var(--accent); color:#fff}
+.btn.primary:hover{background:var(--accent2)}
+.btn:disabled{opacity:.5; cursor:not-allowed; transform:none}
+main{display:grid; grid-template-columns:400px 1fr; gap:20px; padding:20px 28px; align-items:start}
+.left-col{position:sticky; top:20px}
+@media(max-width:960px){main{grid-template-columns:1fr}.left-col{position:static}}
+.panel{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow)}
+.panel-h{padding:14px 18px; border-bottom:1px solid var(--line); font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px}
+.panel-b{padding:16px 18px}
+.step-tag{background:var(--accent); color:#fff; border-radius:6px; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:700}
+.tabs{display:flex; gap:6px; margin-bottom:12px; background:#eef1f8; padding:4px; border-radius:9px}
+.tab{flex:1; text-align:center; padding:7px 4px; border-radius:7px; cursor:pointer; font-size:13px; color:var(--muted); font-weight:500}
+.tab.active{background:#fff; color:var(--accent); box-shadow:0 1px 3px rgba(0,0,0,.08); font-weight:600}
+textarea{width:100%; min-height:220px; border:1px solid var(--line); border-radius:10px; padding:12px; font-size:13px; font-family:inherit; resize:vertical; color:var(--text)}
+textarea:focus{outline:none; border-color:var(--accent2); box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+input[type=text],input[type=password],input[type=number],select{width:100%; border:1px solid var(--line); border-radius:9px; padding:8px 10px; font-size:13px; font-family:inherit; color:var(--text)}
+input:focus,select:focus{outline:none; border-color:var(--accent2); box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+label{display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; font-weight:600}
+.hint{font-size:12px; color:var(--muted); margin-top:6px}
+.file-zone{border:2px dashed var(--line); border-radius:10px; padding:22px; text-align:center; color:var(--muted); cursor:pointer; transition:.15s; font-size:13px}
+.file-zone:hover{border-color:var(--accent2); color:var(--accent)}
+.cfg-toggle{display:flex; justify-content:space-between; align-items:center; cursor:pointer; font-size:13px; color:var(--accent); font-weight:600}
+.cfg-body{display:none; margin-top:8px}
+.cfg-body.open{display:block}
+.row{display:flex; gap:10px}
+.row>*{flex:1}
+.btn-block{width:100%; padding:12px; font-size:15px; border-radius:10px; margin-top:14px}
+.btn-block.secondary{background:#eef1f8; color:var(--text)}
+.progress{height:8px; background:#eef1f8; border-radius:99px; overflow:hidden; margin-top:12px; display:none}
+.progress>div{height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); width:0%; transition:width .3s; border-radius:99px}
+.status{font-size:13px; color:var(--muted); margin-top:10px; min-height:20px}
+.status.ok{color:var(--ok)} .status.err{color:var(--err)}
+/* output */
+.out-tabs{display:flex; gap:4px; border-bottom:1px solid var(--line); padding:0 8px; flex-wrap:wrap}
+.out-tab{padding:13px 14px; cursor:pointer; font-size:13px; color:var(--muted); border-bottom:2px solid transparent; font-weight:500}
+.out-tab.active{color:var(--accent); border-bottom-color:var(--accent); font-weight:600}
+.out-body{padding:20px 22px}
+.empty{text-align:center; color:var(--muted); padding:60px 20px; font-size:14px}
+.empty .big{font-size:40px; margin-bottom:12px}
+/* translation */
+.tr-chunk{margin-bottom:20px}
+.tr-chunk-h{font-size:12px; color:var(--muted); margin-bottom:8px; font-weight:600; text-transform:uppercase; letter-spacing:.5px}
+.tr-row{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden; margin-bottom:10px}
+.tr-cell{padding:12px 14px; background:#fff}
+.tr-cell.en{color:#334155; font-size:13.5px}
+.tr-cell.zh{color:#111827; font-size:13.5px; border-left:none}
+.tr-label{font-size:11px; font-weight:700; letter-spacing:.5px; margin-bottom:6px; display:block}
+.tr-label.en{color:var(--accent)}
+.tr-label.zh{color:var(--ok)}
+@media(max-width:640px){.tr-row{grid-template-columns:1fr}}
+/* markdown */
+.md h1,.md h2,.md h3{margin:18px 0 8px; line-height:1.35}
+.md h1{font-size:20px; border-bottom:2px solid var(--line); padding-bottom:8px}
+.md h2{font-size:17px} .md h3{font-size:15px}
+.md p{margin:8px 0}
+.md ul,.md ol{margin:8px 0; padding-left:22px}
+.md li{margin:4px 0}
+.md code{background:#eef1f8; padding:2px 6px; border-radius:5px; font-size:13px; font-family:ui-monospace,Consolas,monospace}
+.md pre{background:#0f172a; color:#e2e8f0; padding:14px; border-radius:10px; overflow:auto; font-size:13px}
+.md pre code{background:none; color:inherit; padding:0}
+.md table{border-collapse:collapse; width:100%; margin:12px 0}
+.md th,.md td{border:1px solid var(--line); padding:8px 10px; font-size:13px; text-align:left}
+.md th{background:#eef1f8}
+.md blockquote{border-left:3px solid var(--accent); margin:10px 0; padding:6px 14px; background:#f7f8fc; color:#475569}
+/* knowledge */
+.kn-card{border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:12px; background:#fafbfe}
+.kn-term{font-weight:700; color:var(--accent); font-size:14px; margin-bottom:4px}
+.kn-explain{font-size:13.5px; color:#334155}
+/* mindmap */
+#mindmap-wrap{width:100%; height:640px; border:1px solid var(--line); border-radius:10px; background:#fbfcfe; overflow:hidden}
+#mindmap-svg{width:100%; height:100%; display:block}
+.badge{display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:600}
+.badge.meta{background:#eef1f8; color:#475569}
+.paper-head{border-bottom:1px solid var(--line); padding:14px 18px; background:#fafbfe; border-radius:14px 14px 0 0}
+.paper-title{font-size:16px; font-weight:700; margin:0}
+.paper-meta{font-size:12px; color:var(--muted); margin-top:4px}
+footer{text-align:center; color:var(--muted); font-size:12px; padding:24px; }
+/* ===== 历史记录弹窗 ===== */
+.hist-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:100;align-items:center;justify-content:center}
+.hist-overlay.show{display:flex}
+.hist-modal{background:#fff;border-radius:14px;width:92%;max-width:560px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden}
+.hist-head{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.hist-head h3{margin:0;font-size:16px}
+.hist-close{border:none;background:none;font-size:24px;cursor:pointer;color:var(--muted);line-height:1}
+.hist-list{overflow-y:auto;padding:12px;flex:1}
+.hist-item{padding:12px 14px;border:1px solid var(--line);border-radius:10px;margin-bottom:10px;cursor:pointer;transition:.12s}
+.hist-item:hover{border-color:var(--accent2);background:#f7f8fd}
+.hist-item .t{font-size:14px;font-weight:600;margin:0;color:var(--text)}
+.hist-item .m{font-size:12px;color:var(--muted);margin-top:3px}
+.hist-item .acts{margin-top:6px;text-align:right}
+.hist-item .del{font-size:12px;color:var(--err);cursor:pointer;background:none;border:none;padding:2px 4px}
+.hist-empty{text-align:center;color:var(--muted);padding:40px;font-size:14px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>小白菜读论文 · 事件相机论文工作台</h1>
+    <p class="sub">中英对照翻译 · 思维导图 · 知识涵盖 · 思路总结 · 复现流程</p>
+  </div>
+  <div class="header-btns">
+    <button class="btn ghost" id="btn-help">使用说明</button>
+    <button class="btn ghost" id="btn-demo">演示模式</button>
+    <button class="btn ghost" id="btn-history">历史记录</button>
+  </div>
+</header>
+
+<main>
+  <!-- 左栏：输入 + 配置 -->
+  <div class="left-col">
+    <div class="panel">
+      <div class="panel-h"><span class="step-tag">1</span> 输入论文</div>
+      <div class="panel-b">
+        <div class="tabs" id="input-tabs">
+          <div class="tab active" data-tab="paste">粘贴文本</div>
+          <div class="tab" data-tab="pdf">PDF 上传</div>
+          <div class="tab" data-tab="arxiv">arXiv 链接</div>
+        </div>
+        <div id="tab-paste">
+          <textarea id="paper-text" placeholder="在此粘贴论文的英文原文（标题、摘要、正文均可）……"></textarea>
+        </div>
+        <div id="tab-pdf" style="display:none">
+          <div class="file-zone" id="file-zone">点击选择 PDF 文件，或拖拽到此处<br><span style="font-size:12px">将自动提取文字（公式/图表可能不完整）</span></div>
+          <input type="file" id="pdf-file" accept=".pdf" style="display:none">
+          <div class="hint" id="pdf-status"></div>
+        </div>
+        <div id="tab-arxiv" style="display:none">
+          <input type="text" id="arxiv-input" placeholder="如 2301.12345 或 arxiv.org/abs/2301.12345">
+          <button class="btn primary" style="margin-top:10px;width:100%" id="btn-arxiv">获取论文内容</button>
+          <div class="hint">将从 arXiv 抓取摘要/全文，抓取后自动填入“粘贴文本”框供你确认。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-h"><span class="step-tag">2</span> 模型配置 <span style="margin-left:auto;font-weight:400;font-size:12px;color:var(--muted)">通用 OpenAI 兼容接口</span></div>
+      <div class="panel-b">
+        <label>服务商预设</label>
+        <select id="provider">
+          <option value="deepseek" selected>DeepSeek（推荐，便宜好用）</option>
+          <option value="openai">OpenAI</option>
+          <option value="kimi">Kimi（月之暗面）</option>
+          <option value="qwen">通义千问（DashScope 兼容）</option>
+          <option value="custom">自定义</option>
+        </select>
+        <div class="row" style="margin-top:8px">
+          <div><label>API Base URL</label><input type="text" id="base-url" placeholder="https://api.deepseek.com"></div>
+        </div>
+        <label>API Key</label>
+        <input type="password" id="api-key" placeholder="sk-...（仅保存在本机浏览器）">
+        <div class="row" style="margin-top:8px">
+          <div><label>模型名称</label><input type="text" id="model" placeholder="deepseek-chat"></div>
+          <div><label>温度</label><input type="number" id="temperature" step="0.1" min="0" max="2" value="0.3"></div>
+        </div>
+        <div class="hint">未配置 Key 时可点右上角「演示模式」体验完整流程。Key 仅存于浏览器 localStorage，不会上传。</div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-b">
+        <button class="btn primary btn-block" id="btn-run">开始翻译并解析</button>
+        <button class="btn btn-block secondary" id="btn-clear">清空结果</button>
+        <div class="progress" id="progress"><div id="progress-bar"></div></div>
+        <div class="status" id="status"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右栏：输出 -->
+  <div class="panel">
+    <div class="paper-head" id="paper-head" style="display:none">
+      <p class="paper-title" id="paper-title"></p>
+      <p class="paper-meta" id="paper-meta"></p>
+    </div>
+    <div class="out-tabs" id="out-tabs">
+      <div class="out-tab active" data-out="translation">中英对照</div>
+      <div class="out-tab" data-out="mindmap">思维导图</div>
+      <div class="out-tab" data-out="knowledge">知识涵盖</div>
+      <div class="out-tab" data-out="summary">思路总结</div>
+      <div class="out-tab" data-out="reproduction">复现流程</div>
+    </div>
+    <div class="out-body">
+      <div id="out-translation" class="out-pane">
+        <div class="empty"><div class="big">📄</div>输入论文并点击「开始翻译并解析」，这里将显示中英对照译文。</div>
+      </div>
+      <div id="out-mindmap" class="out-pane" style="display:none">
+        <div id="mindmap-wrap"><svg id="mindmap-svg"></svg></div>
+      </div>
+      <div id="out-knowledge" class="out-pane" style="display:none">
+        <div class="empty"><div class="big">🧠</div>关键概念与术语解释将显示在这里。</div>
+      </div>
+      <div id="out-summary" class="out-pane" style="display:none">
+        <div class="empty"><div class="big">💡</div>论文核心思路总结将显示在这里。</div>
+      </div>
+      <div id="out-reproduction" class="out-pane" style="display:none">
+        <div class="empty"><div class="big">🔬</div>复现流程指导将显示在这里。</div>
+      </div>
+      <div style="text-align:right;margin-top:18px" id="export-wrap" hidden>
+        <button class="btn" id="btn-export">导出结果（Markdown）</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>事件相机领域 · 面向初学者的论文精读工具 · 数据仅保存在本地浏览器</footer>
+
+<div class="hist-overlay" id="hist-overlay">
+  <div class="hist-modal">
+    <div class="hist-head"><h3>翻译历史记录</h3><button class="hist-close" id="hist-close">×</button></div>
+    <div class="hist-list" id="hist-list"></div>
+  </div>
+</div>
+
+<script>
+/* ============ 常量与状态 ============ */
+const PRESETS = {
+  deepseek: { baseURL:'https://api.deepseek.com', model:'deepseek-chat' },
+  openai:   { baseURL:'https://api.openai.com/v1', model:'gpt-4o-mini' },
+  kimi:     { baseURL:'https://api.moonshot.cn/v1', model:'moonshot-v1-32k' },
+  qwen:     { baseURL:'https://dashscope.aliyuncs.com/compatible-mode/v1', model:'qwen-plus' },
+  custom:   { baseURL:'', model:'' }
+};
+const STORE_KEY = 'xbc-paper-tool-config';
+let state = { translation:[], mindmap:'', knowledge:[], summary:'', reproduction:'', title:'', meta:'' };
+
+/* ============ 历史记录 ============ */
+const HISTORY_KEY = 'xbc-translate-history';
+function getHistory(){ try{ return JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]'); }catch(e){ return []; } }
+function saveHistory(){
+  if(!state.title && !state.translation.length) return;
+  const h = getHistory();
+  const rec = { id: Date.now(), date: new Date().toLocaleString('zh-CN'), title: state.title, meta: state.meta, preview: (state.translation[0]? state.translation[0].zh : '').slice(0,60), data: JSON.parse(JSON.stringify(state)) };
+  h.unshift(rec);
+  if(h.length > 10) h.length = 10;
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
+}
+function renderHistory(){
+  const h = getHistory();
+  const box = $('hist-list');
+  if(!h.length){ box.innerHTML = '<div class="hist-empty">暂无历史记录。<br>翻译并解析论文后会自动保存（最多 10 条）。</div>'; return; }
+  box.innerHTML = h.map((r,i)=>'<div class="hist-item" data-i="'+i+'"><p class="t">'+esc(r.title)+'</p><p class="m">'+esc(r.date)+' · '+esc(r.meta||'')+'<br>'+esc(r.preview||'')+'…</p><div class="acts"><button class="del" data-i="'+i+'">删除</button></div></div>').join('');
+  box.querySelectorAll('.hist-item').forEach(el=>{
+    el.addEventListener('click', function(e){
+      if(e.target.classList.contains('del')) return;
+      restoreHistory(parseInt(this.dataset.i));
+    });
+  });
+  box.querySelectorAll('.del').forEach(el=>{
+    el.addEventListener('click', function(e){
+      e.stopPropagation();
+      deleteHistory(parseInt(this.dataset.i));
+    });
+  });
+}
+function restoreHistory(i){
+  const h = getHistory();
+  const rec = h[i]; if(!rec) return;
+  state = JSON.parse(JSON.stringify(rec.data));
+  renderAll();
+  switchOutTab('translation');
+  closeHistory();
+  setStatus('已恢复历史记录：'+rec.title, 'ok');
+}
+function deleteHistory(i){
+  const h = getHistory(); h.splice(i,1);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
+  renderHistory();
+}
+function openHistory(){ $('hist-overlay').classList.add('show'); renderHistory(); }
+function closeHistory(){ $('hist-overlay').classList.remove('show'); }
+$('btn-history').addEventListener('click', openHistory);
+$('hist-close').addEventListener('click', closeHistory);
+$('hist-overlay').addEventListener('click', function(e){ if(e.target===this) closeHistory(); });
+
+/* ============ 配置 ============ */
+function $(id){ return document.getElementById(id); }
+function loadConfig(){
+  const c = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+  const p = c.provider || 'deepseek';
+  $('provider').value = p;
+  $('base-url').value = c.baseURL || PRESETS[p].baseURL;
+  $('model').value = c.model || PRESETS[p].model;
+  $('api-key').value = c.apiKey || '';
+  $('temperature').value = c.temperature ?? 0.3;
+}
+function saveConfig(){
+  const c = { provider:$('provider').value, baseURL:$('base-url').value.trim(), model:$('model').value.trim(), apiKey:$('api-key').value.trim(), temperature:parseFloat($('temperature').value||'0.3') };
+  localStorage.setItem(STORE_KEY, JSON.stringify(c));
+}
+function getConfig(){
+  let baseURL = $('base-url').value.trim();
+  if(!baseURL){ baseURL = PRESETS[$('provider').value].baseURL; }
+  return { baseURL: baseURL.replace(/\/+$/,''), model:$('model').value.trim()||'deepseek-chat', apiKey:$('api-key').value.trim(), temperature:parseFloat($('temperature').value||'0.3') };
+}
+$('provider').addEventListener('change', function(){
+  const p = PRESETS[this.value];
+  if(this.value !== 'custom'){ $('base-url').value = p.baseURL; $('model').value = p.model; }
+  else { $('base-url').placeholder = 'https://your-api-endpoint.com/v1'; }
+  saveConfig();
+});
+['base-url','api-key','model','temperature'].forEach(id=>{ $(id).addEventListener('change', saveConfig); });
+
+/* ============ 输入 Tab 切换 ============ */
+function switchInputTab(t){
+  document.querySelectorAll('#input-tabs .tab').forEach(x=>x.classList.toggle('active', x.dataset.tab===t));
+  ['paste','pdf','arxiv'].forEach(k=>{ $('tab-'+k).style.display = (k===t)?'block':'none'; });
+}
+document.querySelectorAll('#input-tabs .tab').forEach(t=>t.addEventListener('click', ()=>switchInputTab(t.dataset.tab)));
+
+/* ============ PDF 解析 ============ */
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+const fileZone = $('file-zone'), pdfFile = $('pdf-file');
+fileZone.addEventListener('click', ()=>pdfFile.click());
+fileZone.addEventListener('dragover', e=>{e.preventDefault(); fileZone.style.borderColor='var(--accent)';});
+fileZone.addEventListener('dragleave', ()=>fileZone.style.borderColor='');
+fileZone.addEventListener('drop', e=>{
+  e.preventDefault(); fileZone.style.borderColor='';
+  if(e.dataTransfer.files[0]) handlePDF(e.dataTransfer.files[0]);
+});
+pdfFile.addEventListener('change', e=>{ if(e.target.files[0]) handlePDF(e.target.files[0]); });
+
+async function handlePDF(file){
+  const st = $('pdf-status'); st.textContent = '正在解析 PDF：' + file.name + ' …';
+  try{
+    const buf = await file.arrayBuffer();
+    const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+    let full = [];
+    for(let i=1;i<=doc.numPages;i++){
+      const page = await doc.getPage(i);
+      const tc = await page.getTextContent();
+      let lastY = null, line = '';
+      for(const it of tc.items){
+        if(lastY!==null && Math.abs(it.transform[5]-lastY)>2){ full.push(line); line=''; }
+        line += it.str + ' ';
+        lastY = it.transform[5];
+      }
+      if(line) full.push(line);
+      st.textContent = '已解析 ' + i + '/' + doc.numPages + ' 页';
+    }
+    const text = full.join('\n').replace(/[ \t]+/g,' ');
+    $('paper-text').value = text;
+    switchInputTab('paste');
+    st.textContent = '完成，已提取 ' + text.length + ' 字符，请检查后开始翻译。';
+  }catch(err){
+    st.textContent = '解析失败：' + err.message;
+  }
+}
+
+/* ============ arXiv 抓取 ============ */
+function extractArxivId(s){
+  const m = s.match(/(?:arxiv\.org\/(?:abs|pdf)\/)?(\d{4}\.\d{4,5})(?:v\d+)?/i);
+  return m ? m[1] : (s.includes('.') ? s.trim() : null);
+}
+function htmlToText(html){
+  const doc = new DOMParser().parseFromString(html,'text/html');
+  doc.querySelectorAll('script,style,nav,footer,math,figure').forEach(n=>n.remove());
+  return (doc.body ? doc.body.innerText : doc.documentElement.innerText).trim();
+}
+$('btn-arxiv').addEventListener('click', async function(){
+  const id = extractArxivId($('arxiv-input').value.trim());
+  if(!id){ setStatus('无法识别 arXiv ID，请检查输入。', 'err'); return; }
+  this.disabled = true; setStatus('正在获取 arXiv 论文 ' + id + ' …');
+  let fullText = '';
+  try{
+    try{
+      const r = await fetch('https://ar5iv.labs.arxiv.org/html/' + id);
+      if(r.ok){ fullText = htmlToText(await r.text()); }
+    }catch(e){}
+    if(!fullText){
+      try{
+        const r = await fetch('https://export.arxiv.org/api/query?id_list=' + id);
+        if(r.ok){
+          const xml = await r.text();
+          const doc = new DOMParser().parseFromString(xml,'application/xml');
+          const t = doc.querySelector('entry title'), a = doc.querySelector('entry summary');
+          fullText = ((t?t.textContent.trim()+'\\n\\n':'') + (a?a.textContent.trim():'')).trim();
+          if(fullText) fullText += '\n\n（注：仅获取到摘要，全文请上传 PDF 或粘贴。）';
+        }
+      }catch(e){}
+    }
+    if(fullText){
+      $('paper-text').value = fullText;
+      switchInputTab('paste');
+      setStatus('已获取 ' + fullText.length + ' 字符，请检查后开始翻译。', 'ok');
+    }else{
+      setStatus('未能获取全文（可能无 HTML 版本），请改用 PDF 上传或粘贴文本。', 'err');
+    }
+  }catch(err){
+    setStatus('获取失败：' + err.message + '（浏览器跨域限制），请改用 PDF 上传或粘贴文本。', 'err');
+  }finally{
+    this.disabled = false;
+  }
+});
+
+/* ============ LLM 调用 ============ */
+async function callLLM(messages, opts={}){
+  const cfg = getConfig();
+  if(!cfg.apiKey) throw new Error('请先填写 API Key（或点击右上角「演示模式」体验）。');
+  const res = await fetch(cfg.baseURL + '/chat/completions', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+cfg.apiKey },
+    body: JSON.stringify({
+      model: cfg.model,
+      messages: messages,
+      temperature: opts.temperature ?? cfg.temperature,
+      max_tokens: opts.maxTokens ?? 8192,
+      stream: false
+    })
+  });
+  if(!res.ok){ const e = await res.text().catch(()=>''); throw new Error('API 请求失败('+res.status+'): '+e.slice(0,300)); }
+  const data = await res.json();
+  return data.choices[0].message.content;
+}
+function parseJSON(text){
+  let s = text.trim();
+  s = s.replace(/```json/gi,'```').replace(/```/g,'').trim();
+  let start = -1;
+  for(const o of ['{','[']){ const i = s.indexOf(o); if(i>=0 && (start<0||i<start)) start=i; }
+  if(start<0) throw new Error('响应中未找到 JSON');
+  s = s.slice(start);
+  for(let end=s.length; end>start; end--){
+    try{ return JSON.parse(s.slice(0,end)); }catch(e){}
+  }
+  throw new Error('JSON 解析失败');
+}
+
+/* ============ 分块 ============ */
+function hardSplit(str, maxLen){
+  const parts=[], sentences=str.split(/(?<=[.!?])\s+/); let cur='';
+  for(let s of sentences){
+    if((cur+s).length>maxLen && cur){ parts.push(cur); cur=s; }
+    else cur = cur? cur+' '+s : s;
+  }
+  if(cur) parts.push(cur);
+  return parts;
+}
+function chunkText(text, maxLen=2500){
+  const paras = text.split(/\n\s*\n/).map(p=>p.trim()).filter(Boolean);
+  const chunks=[]; let cur='';
+  for(let p of paras){
+    if(p.length > maxLen){
+      if(cur){ chunks.push(cur); cur=''; }
+      hardSplit(p, maxLen).forEach(x=>chunks.push(x));
+    }else if((cur+p).length > maxLen && cur){
+      chunks.push(cur); cur=p;
+    }else{
+      cur = cur? cur+'\n\n'+p : p;
+    }
+  }
+  if(cur) chunks.push(cur);
+  return chunks;
+}
+
+/* ============ 翻译 ============ */
+const SYS_TRANSLATE = '你是事件相机（event camera）领域的顶尖专家，精通学术论文翻译。请将用户提供的英文论文内容翻译成中文，用于科研学习。要求：1) 逐段对应翻译，保持原文段落结构，不要合并或拆分段落；2) 专业术语准确，首次出现的术语在译文后用括号附英文原文（如：事件相机（event camera））；3) 数学公式/符号用 LaTeX 原样保留；4) 只输出 JSON 数组，每个元素为 {"en":"英文原文段落","zh":"中文译文段落"}，不要输出 JSON 之外的任何文字。';
+async function translateChunk(chunk, idx, total){
+  const msg = await callLLM([
+    { role:'system', content:SYS_TRANSLATE },
+    { role:'user', content:'请翻译下面这段论文内容（第'+idx+'/'+total+'段）：\n\n'+chunk }
+  ], { temperature:0.2, maxTokens:8192 });
+  return parseJSON(msg);
+}
+async function translateAll(text){
+  const chunks = chunkText(text);
+  const all = [];
+  for(let i=0;i<chunks.length;i++){
+    setProgress(((i)/chunks.length)*55);
+    setStatus('正在翻译第 '+(i+1)+'/'+chunks.length+' 段…');
+    let arr = null;
+    for(let attempt=0; attempt<2; attempt++){
+      try{ arr = await translateChunk(chunks[i], i+1, chunks.length); if(Array.isArray(arr)) break; }catch(e){
+        if(attempt===1) throw new Error('第 '+(i+1)+' 段翻译失败：'+e.message);
+      }
+    }
+    if(!Array.isArray(arr)) throw new Error('第 '+(i+1)+' 段翻译结果异常');
+    arr.forEach((item,j)=>{ all.push({ en:item.en||'', zh:item.zh||'', chunk:i+1 }); });
+  }
+  return all;
+}
+
+/* ============ 分析 ============ */
+const SYS_ANALYZE = '你是事件相机（event camera）领域的顶尖专家。请对用户提供的论文进行深度解析，用于初学者科研学习。只输出严格 JSON，包含以下四个字段（不要输出 JSON 之外的任何文字）：\n'
+ + '1) "mindmap"：思维导图，用 markdown 列表格式（"#" 为中心主题，"##" 为一级分支，"###" 为二级分支，依此类推），覆盖：研究背景、要解决的问题、方法、实验、结论与贡献；\n'
+ + '2) "knowledge"：数组，每项 {"term":"术语","explain":"中文解释"}，列出论文涉及的关键概念/术语，至少 8 个，解释要适合初学者；\n'
+ + '3) "summary"：思路总结（中文 markdown），包含研究动机、核心思想、方法概览、关键创新点、结论；\n'
+ + '4) "reproduction"：复现流程指导（中文 markdown），包含环境依赖、数据集、训练/推理步骤、评估指标、常见坑。';
+async function analyze(text){
+  const input = text.length > 18000 ? text.slice(0,18000) + '\n\n（因篇幅过长已截断，分析基于前半部分）' : text;
+  const msg = await callLLM([
+    { role:'system', content:SYS_ANALYZE },
+    { role:'user', content:'论文内容：\n\n'+input }
+  ], { temperature:0.4, maxTokens:8192 });
+  return parseJSON(msg);
+}
+
+/* ============ 渲染 ============ */
+function renderTranslation(){
+  const box = $('out-translation');
+  if(!state.translation.length){ box.innerHTML = '<div class="empty"><div class="big">📄</div>暂无译文</div>'; return; }
+  let html = '';
+  let curChunk = null;
+  state.translation.forEach((row,i)=>{
+    if(row.chunk !== curChunk){ curChunk = row.chunk; html += '<div class="tr-chunk"><div class="tr-chunk-h">段落块 ' + curChunk + '</div>'; }
+    html += '<div class="tr-row"><div class="tr-cell en"><span class="tr-label en">EN</span>'+esc(row.en)+'</div><div class="tr-cell zh"><span class="tr-label zh">中</span>'+esc(row.zh)+'</div></div>';
+    if(state.translation[i+1] && state.translation[i+1].chunk !== curChunk){ html += '</div>'; }
+  });
+  html += '</div>';
+  box.innerHTML = html;
+}
+function renderMindmap(){
+  if(!state.mindmap){ return; }
+  const svg = $('mindmap-svg');
+  svg.innerHTML = '';
+  try{
+    const { Transformer, Markmap } = window.markmap;
+    const transformer = new Transformer();
+    const { root } = transformer.transform(state.mindmap);
+    Markmap.create(svg, { duration:300, autoFit:true, colorFreezeLevel:2 }, root);
+  }catch(e){
+    $('out-mindmap').innerHTML = '<div class="empty"><div class="big">🧠</div>思维导图渲染失败：'+esc(e.message)+'<br><pre style="text-align:left">'+esc(state.mindmap)+'</pre></div>';
+  }
+}
+function renderMarkdown(id, md, emptyIcon){
+  const box = $(id);
+  if(!md){ box.innerHTML = '<div class="empty"><div class="big">'+emptyIcon+'</div>暂无内容</div>'; return; }
+  box.innerHTML = '<div class="md">'+marked.parse(md)+'</div>';
+}
+function renderKnowledge(){
+  const box = $('out-knowledge');
+  if(!state.knowledge || !state.knowledge.length){ box.innerHTML = '<div class="empty"><div class="big">🧠</div>暂无内容</div>'; return; }
+  box.innerHTML = state.knowledge.map(k=>'<div class="kn-card"><div class="kn-term">'+esc(k.term)+'</div><div class="kn-explain">'+esc(k.explain)+'</div></div>').join('');
+}
+function renderAll(){
+  renderTranslation();
+  renderMindmap();
+  renderKnowledge();
+  renderMarkdown('out-summary', state.summary, '💡');
+  renderMarkdown('out-reproduction', state.reproduction, '🔬');
+  if(state.title || state.meta){
+    $('paper-head').style.display = 'block';
+    $('paper-title').textContent = state.title || '未命名论文';
+    $('paper-meta').textContent = state.meta || '';
+  }
+  $('export-wrap').hidden = false;
+}
+
+/* ============ 输出 Tab 切换 ============ */
+function switchOutTab(t){
+  document.querySelectorAll('#out-tabs .out-tab').forEach(x=>x.classList.toggle('active', x.dataset.out===t));
+  document.querySelectorAll('.out-pane').forEach(p=>p.style.display='none');
+  $('out-'+t).style.display='block';
+  if(t==='mindmap') setTimeout(renderMindmap, 50);
+}
+document.querySelectorAll('#out-tabs .out-tab').forEach(t=>t.addEventListener('click', ()=>switchOutTab(t.dataset.out)));
+
+/* ============ 进度/状态 ============ */
+function setProgress(pct){
+  $('progress').style.display = 'block';
+  $('progress-bar').style.width = Math.min(100,Math.max(0,pct))+'%';
+}
+function setStatus(msg, type){
+  const s = $('status'); s.textContent = msg; s.className = 'status'+(type?' '+type:'');
+}
+function setBusy(b){
+  $('btn-run').disabled = b;
+}
+
+/* ============ 工具函数 ============ */
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ============ 主流程 ============ */
+$('btn-run').addEventListener('click', async function(){
+  const text = $('paper-text').value.trim();
+  if(!text){ setStatus('请先输入论文内容。','err'); return; }
+  saveConfig();
+  setBusy(true); setProgress(0);
+  try{
+    setStatus('开始翻译（分块处理）…');
+    state.translation = await translateAll(text);
+    setProgress(58);
+    setStatus('翻译完成，正在生成解析（思维导图/知识/总结/复现）…');
+    const ana = await analyze(text);
+    state.mindmap = ana.mindmap || '';
+    state.knowledge = Array.isArray(ana.knowledge)? ana.knowledge : [];
+    state.summary = ana.summary || '';
+    state.reproduction = ana.reproduction || '';
+    // 尝试从文本推断标题
+    state.title = (text.split(/\n/)[0]||'').trim().slice(0,120) || '论文解析';
+    state.meta = '已解析 · 共 ' + state.translation.length + ' 个段落';
+    setProgress(100);
+    setStatus('完成！可切换上方标签查看结果。','ok');
+    renderAll();
+    switchOutTab('translation');
+    saveHistory();
+  }catch(err){
+    setStatus('出错：'+err.message, 'err');
+  }finally{
+    setBusy(false);
+    setTimeout(()=>{ $('progress').style.display='none'; setProgress(0); }, 800);
+  }
+});
+
+$('btn-clear').addEventListener('click', function(){
+  state = { translation:[], mindmap:'', knowledge:[], summary:'', reproduction:'', title:'', meta:'' };
+  $('paper-head').style.display='none';
+  $('export-wrap').hidden = true;
+  document.querySelectorAll('.out-pane').forEach(p=>{ p.style.display='none'; });
+  $('out-translation').style.display='block';
+  $('out-translation').innerHTML = '<div class="empty"><div class="big">📄</div>输入论文并点击「开始翻译并解析」，这里将显示中英对照译文。</div>';
+  $('out-mindmap').innerHTML = '<div id="mindmap-wrap"><svg id="mindmap-svg"></svg></div>';
+  $('out-knowledge').innerHTML = '<div class="empty"><div class="big">🧠</div>关键概念与术语解释将显示在这里。</div>';
+  $('out-summary').innerHTML = '<div class="empty"><div class="big">💡</div>论文核心思路总结将显示在这里。</div>';
+  $('out-reproduction').innerHTML = '<div class="empty"><div class="big">🔬</div>复现流程指导将显示在这里。</div>';
+  setStatus('');
+});
+
+/* ============ 演示模式 ============ */
+$('btn-demo').addEventListener('click', function(){
+  state = JSON.parse(JSON.stringify(DEMO));
+  renderAll();
+  switchOutTab('translation');
+  setStatus('演示模式：以下为内置的《Event-Based Vision: A Survey》综述解析，可直接切换标签查看。','ok');
+});
+
+/* ============ 使用说明 ============ */
+$('btn-help').addEventListener('click', function(){
+  alert(
+    '【使用步骤】\n' +
+    '1. 在左侧粘贴论文英文原文，或上传 PDF，或输入 arXiv 链接。\n' +
+    '2. 配置模型：选择服务商（推荐 DeepSeek），填入 API Key。\n' +
+    '   - DeepSeek：https://platform.deepseek.com 注册充值后获取 Key\n' +
+    '   - OpenAI：https://platform.openai.com\n' +
+    '   - Kimi：https://platform.moonshot.cn\n' +
+    '3. 点击「开始翻译并解析」，等待进度完成。\n' +
+    '4. 在右侧标签查看：中英对照 / 思维导图 / 知识涵盖 / 思路总结 / 复现流程。\n\n' +
+    '【提示】\n' +
+    '· 未配置 Key 时，点右上角「演示模式」可先体验完整效果。\n' +
+    '· 思维导图可拖动、缩放、点击节点折叠/展开。\n' +
+    '· 所有数据仅保存在你的浏览器本地，不会上传。'
+  );
+});
+
+/* ============ 导出 ============ */
+$('btn-export').addEventListener('click', function(){
+  let md = '# ' + (state.title||'论文解析') + '\n\n';
+  if(state.meta) md += '> ' + state.meta + '\n\n';
+  md += '## 一、中英对照翻译\n\n';
+  state.translation.forEach(r=>{ md += '### 原文\n\n' + r.en + '\n\n### 译文\n\n' + r.zh + '\n\n---\n\n'; });
+  md += '## 二、思维导图\n\n```markdown\n' + state.mindmap + '\n```\n\n';
+  md += '## 三、知识涵盖\n\n';
+  state.knowledge.forEach(k=>{ md += '- **' + k.term + '**：' + k.explain + '\n'; });
+  md += '\n## 四、思路总结\n\n' + state.summary + '\n\n## 五、复现流程\n\n' + state.reproduction + '\n';
+  const blob = new Blob([md], {type:'text/markdown;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '论文解析_' + (state.title||'result').slice(0,30).replace(/[\\/:*?"<>|]/g,'') + '.md';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+/* ============ 演示数据 ============ */
+const DEMO = {
+  title: 'Event-Based Vision: A Survey（事件相机视觉综述）',
+  meta: 'Gallego et al. · IEEE TPAMI 2020（事件相机领域最经典的入门综述）',
+  translation: [
+    { en:'Event cameras are bio-inspired sensors that differ from conventional frame cameras: instead of grabbing images at a fixed rate, they asynchronously measure per-pixel brightness changes, and output a stream of events that encode the time, location and sign of the brightness changes.', zh:'事件相机（event camera）是一种受生物启发的传感器，它与传统的帧相机（frame camera）不同：它并非以固定帧率抓取图像，而是异步地测量每个像素的亮度变化，并输出一串事件（event）流，这些事件编码了亮度变化发生的时间、位置和符号（极性）。', chunk:1 },
+    { en:'Event cameras offer attractive properties compared to traditional cameras: high temporal resolution (in the order of µs), very high dynamic range (140 dB vs. 60 dB), low power consumption, and high pixel bandwidth (on the order of kHz) resulting in reduced motion blur.', zh:'与传统相机相比，事件相机具有极具吸引力的特性：高时间分辨率（微秒量级）、非常高的动态范围（140 dB 对比 60 dB）、低功耗，以及高像素带宽（千赫兹量级），从而显著减少了运动模糊。', chunk:1 },
+    { en:'This paper provides a comprehensive overview of the emerging field of event-based vision, with a focus on the applications and the algorithms developed to unlock the outstanding properties of event cameras.', zh:'本文对新兴的事件驱动视觉（event-based vision）领域进行了全面综述，重点关注为释放事件相机卓越特性而开发的应用与算法。', chunk:1 },
+    { en:'We present event cameras from their working principle, the actual available sensors, and their tasks which range from low-level vision (feature detection and tracking, optic flow, etc.) to high-level vision (reconstruction, segmentation, recognition).', zh:'我们从事件相机的工作原理、现有的实际传感器，以及其任务（从底层视觉——如特征检测与跟踪、光流估计等，到高层视觉——如图像重建、分割、识别）等多个角度进行介绍。', chunk:1 }
+  ],
+  mindmap: '# 事件相机综述\n## 研究背景\n### 传统相机的局限\n### 生物启发的动机\n## 工作原理\n### 像素级亮度变化\n### 事件流 (x, y, t, p)\n## 关键优势\n### 高时间分辨率（微秒级）\n### 高动态范围（140dB）\n### 低功耗\n### 低运动模糊\n## 核心任务\n### 底层视觉\n#### 特征检测与跟踪\n#### 光流估计\n### 高层视觉\n#### 图像重建\n#### 分割\n#### 识别\n## 处理方法\n### 传统算法\n### 深度学习方法（CNN）\n### 脉冲神经网络（SNN）\n### 专用处理器\n## 挑战与展望\n### 噪声与数据稀缺\n### 算法生态建设\n### 高效生物启发感知',
+  knowledge: [
+    { term:'事件相机（Event Camera）', explain:'一种受生物启发的视觉传感器，异步输出像素级亮度变化的事件流，而非固定帧率的图像。最经典的类型是动态视觉传感器（DVS）。' },
+    { term:'事件（Event）', explain:'事件相机输出的一条记录，通常用四元组 (x, y, t, p) 表示：像素位置 x,y、时间戳 t、亮度变化极性 p（+1 表示变亮，-1 表示变暗）。' },
+    { term:'动态视觉传感器（DVS）', explain:'Dynamic Vision Sensor，最经典的事件相机类型，每个像素独立异步地检测亮度变化并输出事件。' },
+    { term:'帧相机（Frame Camera）', explain:'传统相机，以固定帧率（如 30fps）输出整幅图像，与事件相机的异步输出方式形成对比。' },
+    { term:'时间分辨率（Temporal Resolution）', explain:'传感器响应变化的速度。事件相机可达微秒级，远高于普通相机的毫秒级，因此能捕捉高速运动。' },
+    { term:'动态范围（Dynamic Range）', explain:'传感器能分辨的最亮与最暗光强的比值。事件相机约 140dB，普通相机约 60dB，因此在明暗剧烈变化的场景下事件相机更有优势。' },
+    { term:'光流（Optic Flow）', explain:'描述像素运动的速度矢量场。事件相机因高时间分辨率，能更精确地估计光流。' },
+    { term:'脉冲神经网络（SNN, Spiking Neural Network）', explain:'以脉冲（spike）为信息载体的神经网络，与事件流的异步、稀疏特性天然契合，是事件相机的重要处理范式。' },
+    { term:'图像重建（Reconstruction）', explain:'从稀疏的事件流恢复出灰度图像的任务，是事件相机高层视觉的基础任务之一。' }
+  ],
+  summary: '## 研究动机\n传统相机以固定帧率拍摄，存在两个固有缺陷：**帧间信息丢失**（无法捕捉高速运动）和**动态范围有限**（过曝/欠曝）。事件相机模拟生物视网膜，用异步事件流解决这些问题。\n\n## 核心思想\n事件相机不做全局快门式的整帧采样，而是让每个像素独立、异步地报告"何时变亮/变暗了多少"。它输出的事件流本质上是一种**时空稀疏的信号**，把"视觉"从"离散帧"变成了"连续变化"。\n\n## 方法概览\n论文按任务难度分层梳理了事件相机的方法：\n- **底层视觉**：特征检测与跟踪、光流估计；\n- **中层任务**：深度估计、SLAM/位姿估计；\n- **高层视觉**：图像重建、分割、识别。\n\n处理手段也从传统的手工设计算法，逐步演进到 **CNN 深度学习方法**、**脉冲神经网络（SNN）**，以及面向事件的**专用处理器/芯片**。\n\n## 关键创新点\n1. 系统性地把事件视觉的任务谱系与算法谱系对应起来；\n2. 明确指出事件相机区别于帧相机的核心价值（µs 级时间分辨率、140dB 动态范围、低功耗）；\n3. 梳理了从传统方法到 SNN 的完整技术演进路径，为后续研究提供地图。\n\n## 结论\n事件相机在高速、高动态范围场景下潜力巨大，但算法生态尚不成熟。未来的机会在于：更高效的去噪/重建方法、与 SNN 结合的低功耗处理，以及面向事件的专用计算硬件。',
+  reproduction: '## 1. 环境依赖\n这是一篇综述（survey），**无需复现代码**。但要动手实践事件相机，建议先搭好基础环境：\n\n```bash\n# Python 环境\nconda create -n event python=3.9 -y\nconda activate event\n\n# 核心依赖\npip install numpy opencv-python matplotlib\npip install tonic  # 事件数据集加载库\n```\n\n## 2. 数据集\n- **N-Caltech101 / N-MNIST**：事件版分类数据集（由 Caltech101/MNIST 通过 saccadic 运动生成）；\n- **DSEC**：自动驾驶场景事件数据集（含光流/深度真值）；\n- **Event Camera Dataset（RPG）**：苏黎世大学 Robotic and Perception Group 发布，最经典。\n\n## 3. 实践步骤\n1. 用 `tonic` 加载 N-MNIST，可视化事件流（绘制 event 的时空图）；\n2. 将事件流聚合成 event frame（按时间窗累积极性/负极性），得到类图像表示；\n3. 用一个小 CNN 在 event frame 上做分类，作为入门实验；\n4. 阅读并运行经典开源仓库（如 RPG 的 `rpg_vid2e`、`ESIM` 事件模拟器）。\n\n## 4. 评估指标\n- 分类任务：Accuracy；\n- 光流/深度：AEE（平均端点误差）、错误率；\n- 重建：MSE、SSIM、LPIPS。\n\n## 5. 常见坑\n- 事件数据稀疏且含噪声，需先了解去噪/滤波；\n- 不同传感器（DVS/DAVIS/ATIS）事件格式略有差异，注意时间戳对齐；\n- 事件转帧的"时间窗"选择会影响下游性能，需要调参。'
+};
+
+/* ============ 初始化 ============ */
+loadConfig();
+</script>
+</body>
+</html>
