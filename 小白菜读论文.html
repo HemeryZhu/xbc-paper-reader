@@ -60,6 +60,12 @@ main{display:grid;grid-template-columns:360px 1fr;gap:20px;padding:20px 28px;ali
 .dual-body p{margin:0 0 12px}
 .dual-body p:last-child{margin-bottom:0}
 .dual-col+.dual-col{border-left:1px solid var(--line)}
+/* 翻译校对报告（可展开、可人工核查） */
+.trans-review{border:1px solid var(--line);border-radius:10px;background:#fafbfe;padding:10px 14px;margin-bottom:12px;font-size:13px}
+.trans-review summary{cursor:pointer;font-weight:600;color:var(--accent);outline:none}
+.trans-review-body{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.tr-issue{font-size:12.5px;line-height:1.65;color:#334155;background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+.tr-issue strong{color:var(--text);font-weight:700}
 @media(max-width:640px){.tr-row{grid-template-columns:1fr}.dual-trans{grid-template-columns:1fr}.dual-col+.dual-col{border-left:none;border-top:1px solid var(--line)}}
 .md h1,.md h2,.md h3{margin:16px 0 8px;line-height:1.35}
 .md h1{font-size:19px;border-bottom:2px solid var(--line);padding-bottom:8px}
@@ -2322,7 +2328,7 @@ function showReadingDetail(id){
     tbtn.style.display = 'none';
   }
   if(hasTrans){
-    renderReadingTranslation(r.translation, r.content);
+    renderReadingTranslation(r.translation, r.content, r.translationReview);
     body.style.display = 'none';
   }
   $('reading-modal-overlay').classList.add('show');
@@ -2354,16 +2360,61 @@ function splitFullText(text){
   }
   return out.filter(p=>p.length>1);
 }
-function renderReadingTranslation(list, content){
+function reviewReportHTML(review){
+  if(!review) return '';
+  const issues = (review.issues||[]);
+  const head = '🔎 校对报告 · 共 '+esc(review.batches)+' 批逐段核对，修正 '+esc(review.fixed)+' 处'+(issues.length ? '，另有 '+issues.length+' 条问题记录' : '，未记录问题');
+  let inner = '';
+  if(!issues.length){
+    inner = '<div class="tr-issue">逐段核对未发现漏译、术语或数字不一致。</div>';
+  }else{
+    inner = issues.map(it=>'<div class="tr-issue"><strong>批'+esc(it.batch)+' · 段'+esc(it.seg)+' · '+esc(it.type)+'</strong>　'+esc(it.detail)+'</div>').join('');
+  }
+  inner += '<div class="tr-issue" style="color:var(--muted)">校对只依据原文核对，不做额外扩写；标注「存疑」的条目请回原文人工确认。</div>';
+  return '<details class="trans-review"><summary>'+head+'</summary><div class="trans-review-body">'+inner+'</div></details>';
+}
+function renderReadingTranslation(list, content, review){
   const box = $('reading-translation-body');
   if(!box) return;
   const zhSrc = content ? isMostlyChinese(content) : false;
   if(!(list||[]).length){
     box.innerHTML = '<div class="empty" style="padding:24px">暂无翻译</div>';
   }else{
-    box.innerHTML = dualTransHTML(list, zhSrc);
+    box.innerHTML = reviewReportHTML(review) + dualTransHTML(list, zhSrc);
   }
   box.style.display = 'block';
+}
+/* 术语统一表：把当前领域术语表转成「中文 = English」，注入翻译与校对 prompt，保证译名前后一致 */
+function transGlossaryHint(){
+  const arr = [];
+  (GLOSSARY||[]).forEach(g=>{
+    const items = (g && Array.isArray(g.items)) ? g.items : [g];
+    items.forEach(it=>{
+      const t = String((it && it.term) || '').trim();
+      if(!t) return;
+      const m = t.match(/^(.+?)（(.+?)）$/);
+      arr.push(m ? (m[1].trim()+' = '+m[2].trim()) : t);
+    });
+  });
+  return arr.slice(0,40).join('；');
+}
+/* 逐批校对：把初译与原文逐段对照，返回修正译文与问题清单；解析失败返回 null（保留初译） */
+async function reviewTranslationBatch(cfg, batch, draft, zhSrc){
+  const sys = zhSrc
+    ? '你是科研论文中译英校对专家。用户给出中文原文段落与英文译文，请逐段核对：漏译/增译、术语一致性、数字与单位、公式与符号、引用编号、语义漂移或臆造。只输出 JSON，不要解释。'
+    : '你是科研论文英译中校对专家。用户给出英文原文段落与中文译文，请逐段核对：漏译/增译、术语一致性、数字与单位、公式与符号、引用编号、语义漂移或臆造。只输出 JSON，不要解释。';
+  const lines = batch.map((p,i)=>{
+    const d = draft[i] || {};
+    return '【第'+(i+1)+'段原文】\n'+p+'\n【第'+(i+1)+'段译文】\n'+String(zhSrc ? (d.en||'') : (d.zh||''));
+  }).join('\n\n');
+  const g = transGlossaryHint();
+  const user = (g ? '【术语统一表】\n'+g+'\n\n' : '') + lines +
+    '\n\n输出严格 JSON：{"issues":[{"seg":段号,"type":"漏译|增译|术语|数字公式|语义|其他","detail":"具体问题，引用原文片段"}],"blocks":[{"zh":"修正后的中文译文","en":"修正后的英文译文"}]}。\n要求：blocks 必须与输入段落一一对应、顺序一致，没有问题的段落原样返回；禁止新增原文没有的内容；不确定时保留原译并在 issues 标注「存疑」。';
+  const txt = await chatCompletion(cfg, [{role:'system',content:sys},{role:'user',content:user}], {temperature:0.2, maxTokens:4096});
+  let obj;
+  try{ obj = parseJSON(txt); }catch(e){ return null; }
+  if(!obj || !Array.isArray(obj.blocks) || obj.blocks.length !== batch.length) return null;
+  return obj;
 }
 async function translateFullText(content, onProgress){
   const cfg = getAsstConfig();
@@ -2379,24 +2430,53 @@ async function translateFullText(content, onProgress){
   }
   if(cur.length) batches.push(cur);
   const sys = zhSrc
-    ? '你是学术翻译专家。请把用户提供的中文段落逐段翻译成准确、流畅的英文。严格输出 JSON 数组，每项 {"zh":"中文原文","en":"英文译文"}，与输入段落一一对应，不要遗漏、不要合并、不要添加解释。只输出 JSON。'
-    : '你是学术翻译专家。请把用户提供的英文段落逐段翻译成准确、流畅的中文。严格输出 JSON 数组，每项 {"en":"英文原文","zh":"中文译文"}，与输入段落一一对应，不要遗漏、不要合并、不要添加解释。只输出 JSON。';
+    ? '你是科研论文翻译专家（中译英）。请把中文段落逐段翻译成准确、规范的学术英文：术语统一、保留数字/单位/公式/引用编号，不增删信息、不写解释。严格输出 JSON 数组，每项 {"zh":"中文原文","en":"英文译文"}，与输入段落一一对应。只输出 JSON。'
+    : '你是科研论文翻译专家（英译中）。请把英文段落逐段翻译成准确、规范的学术中文：术语统一、保留数字/单位/公式/引用编号，不增删信息、不写解释。严格输出 JSON 数组，每项 {"en":"英文原文","zh":"中文译文"}，与输入段落一一对应。只输出 JSON。';
+  const g = transGlossaryHint();
+  const sysFull = g ? sys + '\n术语统一表（必须遵守）：' + g : sys;
   const all = [];
+  const review = { batches:batches.length, issues:[], fixed:0 };
   for(let i=0;i<batches.length;i++){
-    if(onProgress) onProgress(i+1, batches.length);
+    if(onProgress) onProgress(i+1, batches.length, 'translate');
     const seg = batches[i].map((p,idx)=>'【'+(idx+1)+'】'+p).join('\n\n');
-    const txt = await chatCompletion(cfg, [
-      { role:'system', content: sys },
-      { role:'user', content: seg }
-    ], { temperature:0.3, maxTokens:4096 });
-    let arr;
-    try{ arr = parseJSON(txt); }catch(e){ arr = null; }
-    if(!Array.isArray(arr) || arr.length === 0){
-      arr = batches[i].map(p=> zhSrc ? {zh:p, en:'[翻译失败]'} : {en:p, zh:'[翻译失败]'});
+    let arr = null;
+    try{
+      const txt = await chatCompletion(cfg, [
+        { role:'system', content: sysFull },
+        { role:'user', content: seg }
+      ], { temperature:0.3, maxTokens:4096 });
+      arr = parseJSON(txt);
+    }catch(e){ arr = null; }
+    // 原文侧一律取本地原文，模型只提供译文侧，避免模型改写原文或凭空补内容
+    const draft = batches[i].map((p,k)=>{
+      const it = (Array.isArray(arr) && arr[k]) ? arr[k] : null;
+      if(zhSrc) return { zh:p, en:String((it&&it.en)||'[未返回译文]') };
+      return { en:p, zh:String((it&&it.zh)||'[未返回译文]') };
+    });
+    // 逐批校对
+    if(onProgress) onProgress(i+1, batches.length, 'review');
+    try{
+      const rv = await reviewTranslationBatch(cfg, batches[i], draft, zhSrc);
+      if(rv){
+        rv.blocks.forEach((b,k)=>{
+          const before = zhSrc ? draft[k].en : draft[k].zh;
+          const after = String(zhSrc ? (b.en||'') : (b.zh||'')).trim();
+          if(after && after !== before) review.fixed++;
+          draft[k][zhSrc?'en':'zh'] = after || before;
+        });
+        (rv.issues||[]).forEach(it=>{
+          if(!it) return;
+          review.issues.push({ batch:i+1, seg:it.seg, type:String(it.type||'其他'), detail:String(it.detail||'') });
+        });
+      }else{
+        review.issues.push({ batch:i+1, seg:'-', type:'校对未完成', detail:'模型未返回可解析的校对结果，已保留初译' });
+      }
+    }catch(e){
+      review.issues.push({ batch:i+1, seg:'-', type:'校对未完成', detail:e.message });
     }
-    all.push(...arr);
+    all.push(...draft);
   }
-  return all;
+  return { list: all, review: review };
 }
 function printTextAsPdf(title, content){
   const w = window.open('', '_blank');
@@ -2496,14 +2576,14 @@ $('reading-translate-btn').addEventListener('click', async function(){
     const paras = splitFullText(r.content);
     tbody.style.display = 'block';
     body.style.display = 'none';
-    tbody.innerHTML = '<div class="empty" style="padding:24px">⏳ 正在全文翻译…（共约 '+paras.length+' 段，长文需数分钟，请勿关闭）</div>';
-    const list = await translateFullText(r.content, function(done, total){
-      tbtn.textContent = '翻译中 '+done+'/'+total;
+    tbody.innerHTML = '<div class="empty" style="padding:24px">⏳ 正在全文翻译 + 逐批校对…（共约 '+paras.length+' 段，每批 2 次模型调用，长文需数分钟，请勿关闭）</div>';
+    const res = await translateFullText(r.content, function(done, total, phase){
+      tbtn.textContent = (phase === 'review' ? '校对中 ' : '翻译中 ') + done + '/' + total;
     });
     const all = getUploadedReading();
     const idx = all.findIndex(x=>x.id===currentReadingId);
-    if(idx>=0){ all[idx].translation = list; localStorage.setItem(getReadingKey(), JSON.stringify(all)); }
-    renderReadingTranslation(list, r.content);
+    if(idx>=0){ all[idx].translation = res.list; all[idx].translationReview = res.review; localStorage.setItem(getReadingKey(), JSON.stringify(all)); }
+    renderReadingTranslation(res.list, r.content, res.review);
     tbtn.textContent = '🔄 重新翻译全文';
   }catch(e){
     tbody.innerHTML = '<div class="cmp-note" style="margin:0">全文翻译失败：'+esc(e.message)+'</div>';
