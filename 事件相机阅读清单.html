@@ -51,7 +51,16 @@ main{display:grid;grid-template-columns:360px 1fr;gap:20px;padding:20px 28px;ali
 .tr-cell.zh{color:#111827;font-size:13.5px}
 .tr-label{font-size:11px;font-weight:700;letter-spacing:.5px;margin-bottom:6px;display:block}
 .tr-label.en{color:var(--accent)} .tr-label.zh{color:var(--ok)}
-@media(max-width:640px){.tr-row{grid-template-columns:1fr}}
+/* 左右分栏对照翻译：左侧原文、右侧译文，同排版逐段对齐 */
+.dual-trans{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.dual-col{background:#fff;min-width:0}
+.dual-head{padding:9px 14px;font-size:11px;font-weight:700;letter-spacing:.5px;border-bottom:1px solid var(--line);background:#fff}
+.dual-head.en{color:var(--accent)} .dual-head.zh{color:var(--ok)}
+.dual-body{padding:14px 16px;font-size:13.5px;line-height:1.75;color:#334155}
+.dual-body p{margin:0 0 12px}
+.dual-body p:last-child{margin-bottom:0}
+.dual-col+.dual-col{border-left:1px solid var(--line)}
+@media(max-width:640px){.tr-row{grid-template-columns:1fr}.dual-trans{grid-template-columns:1fr}.dual-col+.dual-col{border-left:none;border-top:1px solid var(--line)}}
 .md h1,.md h2,.md h3{margin:16px 0 8px;line-height:1.35}
 .md h1{font-size:19px;border-bottom:2px solid var(--line);padding-bottom:8px}
 .md h2{font-size:16px} .md h3{font-size:14.5px}
@@ -774,7 +783,9 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:22px}
       </div>
     </div>
     <div class="reading-modal-body" id="reading-modal-body"></div>
+    <div class="reading-modal-body" id="reading-translation-body" style="display:none;white-space:normal"></div>
     <div class="reading-modal-actions" id="reading-modal-actions">
+      <button class="btn" id="reading-translate-btn" style="display:none">🌐 全文对照翻译</button>
       <button class="btn" id="reading-delete-btn" style="color:var(--err)">删除此待读</button>
     </div>
   </div>
@@ -909,11 +920,19 @@ function exportCurrent(){
 }
 
 /* ============ 渲染 ============ */
+function dualTransHTML(list, zhSrc){
+  const labelEn = zhSrc ? 'EN · 译文' : 'EN · 原文';
+  const labelZh = zhSrc ? '中 · 原文' : '中 · 译文';
+  const enParts = (list||[]).map(r=>'<p>'+esc(r.en)+'</p>').join('');
+  const zhParts = (list||[]).map(r=>'<p>'+esc(r.zh)+'</p>').join('');
+  return '<div class="dual-trans">' +
+    '<div class="dual-col"><div class="dual-head en">'+labelEn+'</div><div class="dual-body">'+enParts+'</div></div>' +
+    '<div class="dual-col"><div class="dual-head zh">'+labelZh+'</div><div class="dual-body">'+zhParts+'</div></div>' +
+    '</div>';
+}
 function renderTranslation(p){
   const box = $('out-translation');
-  box.innerHTML = (p.translation||[]).map(r=>
-    '<div class="tr-row"><div class="tr-cell en"><span class="tr-label en">EN · 原文</span>'+esc(r.en)+'</div><div class="tr-cell zh"><span class="tr-label zh">中 · 译文</span>'+esc(r.zh)+'</div></div>'
-  ).join('');
+  box.innerHTML = dualTransHTML(p.translation||[], false);
 }
 let mmMode = 'single';
 function renderMindmap(p){
@@ -2275,8 +2294,10 @@ function showReadingDetail(id){
   $('reading-modal-title').textContent = r.title;
   $('reading-modal-meta').textContent = [r.authors, r.source, r.note].filter(Boolean).join(' · ');
   const body = $('reading-modal-body');
+  const tbody = $('reading-translation-body');
   const openLink = $('reading-open-link');
   body.style.display = 'block';
+  tbody.style.display = 'none';
   openLink.style.display = 'none';
   if(r.content){
     body.textContent = r.content.length > 20000 ? r.content.slice(0,20000)+'\n\n（内容过长，已截断）' : r.content;
@@ -2289,7 +2310,92 @@ function showReadingDetail(id){
   }
   $('reading-modal-actions').style.display = (r.type==='up') ? 'flex' : 'none';
   $('reading-download-btn').style.display = (r.arxiv || r.pdf || r.content) ? 'inline-block' : 'none';
+  // 全文对照翻译按钮：仅上传且有全文时显示
+  const tbtn = $('reading-translate-btn');
+  const hasContent = !!r.content;
+  const hasTrans = Array.isArray(r.translation) && r.translation.length > 0;
+  if(r.type==='up' && hasContent){
+    tbtn.style.display = 'inline-block';
+    tbtn.textContent = hasTrans ? '🔄 重新翻译全文' : '🌐 全文对照翻译';
+  }else{
+    tbtn.style.display = 'none';
+  }
+  if(hasTrans){
+    renderReadingTranslation(r.translation, r.content);
+    body.style.display = 'none';
+  }
   $('reading-modal-overlay').classList.add('show');
+}
+function isMostlyChinese(text){
+  const s = String(text||'');
+  const cn = (s.match(/[\u4e00-\u9fa5]/g)||[]).length;
+  const en = (s.match(/[a-zA-Z]/g)||[]).length;
+  return cn > en;
+}
+function splitFullText(text){
+  const s = String(text||'').replace(/\r/g,'');
+  let paras = s.split(/\n{2,}/).map(p=>p.replace(/[ \t]+/g,' ').trim()).filter(p=>p.length>1);
+  const out = [];
+  for(const p of paras){
+    if(p.length <= 1200){ out.push(p); continue; }
+    const chunks = p.match(/[^.!?。！？]+[.!?。！？]+/g);
+    if(!chunks || chunks.length < 2){ out.push(p); continue; }
+    let cur = '';
+    for(const c of chunks){
+      if((cur+c).length > 1200 && cur){ out.push(cur.trim()); cur=''; }
+      cur += c;
+    }
+    if(cur.trim()) out.push(cur.trim());
+  }
+  if(out.length === 1 && out[0].length > 1200){
+    const big = out[0]; out.length = 0;
+    for(let i=0;i<big.length;i+=1100){ out.push(big.slice(i, i+1100)); }
+  }
+  return out.filter(p=>p.length>1);
+}
+function renderReadingTranslation(list, content){
+  const box = $('reading-translation-body');
+  if(!box) return;
+  const zhSrc = content ? isMostlyChinese(content) : false;
+  if(!(list||[]).length){
+    box.innerHTML = '<div class="empty" style="padding:24px">暂无翻译</div>';
+  }else{
+    box.innerHTML = dualTransHTML(list, zhSrc);
+  }
+  box.style.display = 'block';
+}
+async function translateFullText(content, onProgress){
+  const cfg = getAsstConfig();
+  if(!cfg.apiKey) throw new Error('请先在「AI助手」视图展开「模型配置」填入 API Key。');
+  const paras = splitFullText(content);
+  if(!paras.length) throw new Error('没有可翻译的正文内容。');
+  const zhSrc = isMostlyChinese(content);
+  const batches = [];
+  let cur = [], curLen = 0;
+  for(const p of paras){
+    if(curLen + p.length > 2000 && cur.length){ batches.push(cur); cur=[]; curLen=0; }
+    cur.push(p); curLen += p.length;
+  }
+  if(cur.length) batches.push(cur);
+  const sys = zhSrc
+    ? '你是学术翻译专家。请把用户提供的中文段落逐段翻译成准确、流畅的英文。严格输出 JSON 数组，每项 {"zh":"中文原文","en":"英文译文"}，与输入段落一一对应，不要遗漏、不要合并、不要添加解释。只输出 JSON。'
+    : '你是学术翻译专家。请把用户提供的英文段落逐段翻译成准确、流畅的中文。严格输出 JSON 数组，每项 {"en":"英文原文","zh":"中文译文"}，与输入段落一一对应，不要遗漏、不要合并、不要添加解释。只输出 JSON。';
+  const all = [];
+  for(let i=0;i<batches.length;i++){
+    if(onProgress) onProgress(i+1, batches.length);
+    const seg = batches[i].map((p,idx)=>'【'+(idx+1)+'】'+p).join('\n\n');
+    const txt = await chatCompletion(cfg, [
+      { role:'system', content: sys },
+      { role:'user', content: seg }
+    ], { temperature:0.3, maxTokens:4096 });
+    let arr;
+    try{ arr = parseJSON(txt); }catch(e){ arr = null; }
+    if(!Array.isArray(arr) || arr.length === 0){
+      arr = batches[i].map(p=> zhSrc ? {zh:p, en:'[翻译失败]'} : {en:p, zh:'[翻译失败]'});
+    }
+    all.push(...arr);
+  }
+  return all;
 }
 function printTextAsPdf(title, content){
   const w = window.open('', '_blank');
@@ -2377,6 +2483,34 @@ $('reading-modal-close').addEventListener('click', closeReadingDetail);
 $('reading-modal-overlay').addEventListener('click', function(e){ if(e.target===this) closeReadingDetail(); });
 $('reading-delete-btn').addEventListener('click', deleteCurrentReading);
 $('reading-download-btn').addEventListener('click', downloadCurrentPdf);
+$('reading-translate-btn').addEventListener('click', async function(){
+  const r = getAllReading().find(x=>x.id===currentReadingId);
+  if(!r || !r.content) return;
+  const tbtn = this;
+  const tbody = $('reading-translation-body');
+  const body = $('reading-modal-body');
+  const orig = tbtn.textContent;
+  tbtn.disabled = true;
+  try{
+    const paras = splitFullText(r.content);
+    tbody.style.display = 'block';
+    body.style.display = 'none';
+    tbody.innerHTML = '<div class="empty" style="padding:24px">⏳ 正在全文翻译…（共约 '+paras.length+' 段，长文需数分钟，请勿关闭）</div>';
+    const list = await translateFullText(r.content, function(done, total){
+      tbtn.textContent = '翻译中 '+done+'/'+total;
+    });
+    const all = getUploadedReading();
+    const idx = all.findIndex(x=>x.id===currentReadingId);
+    if(idx>=0){ all[idx].translation = list; localStorage.setItem(getReadingKey(), JSON.stringify(all)); }
+    renderReadingTranslation(list, r.content);
+    tbtn.textContent = '🔄 重新翻译全文';
+  }catch(e){
+    tbody.innerHTML = '<div class="cmp-note" style="margin:0">全文翻译失败：'+esc(e.message)+'</div>';
+    tbtn.textContent = orig;
+  }finally{
+    tbtn.disabled = false;
+  }
+});
 $('btn-download-pdf').addEventListener('click', downloadCurrentDocPdf);
 $('reading-deconstruct-btn').addEventListener('click', function(){ $('deconstruct-file').click(); });
 $('deconstruct-file').addEventListener('change', function(){
