@@ -27,7 +27,7 @@ from urllib.parse import quote
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 ACCOUNT_FILE = os.path.join(ROOT, '同步账号.json')
-APP_PAGE = '事件相机阅读清单.html'
+APP_PAGE = '小白菜读论文.html'
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8788
 
 LOCK = threading.Lock()
@@ -308,7 +308,7 @@ def lan_ips():
 
 def main():
     server = ThreadingHTTPServer(('0.0.0.0', PORT), Handler)
-    name = '事件相机阅读清单.html'
+    name = '小白菜读论文.html'
     print('=' * 60)
     print(' 小白菜读论文 · 账号同步服务已启动')
     print(' 电脑打开：http://127.0.0.1:%d/%s' % (PORT, name))
