@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>小白菜读论文 · 事件相机知识库</title>
+<title>小白菜读论文</title>
 <script src="https://cdn.jsdelivr.net/npm/markmap-autoloader@0.17.0"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -427,7 +427,8 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:22px}
 <body>
 <header>
   <div>
-    <h1>事件相机 · 个人知识库</h1>
+    <h1>小白菜读论文</h1>
+    <p class="sub">输入一个领域，给你一个世界</p>
   </div>
   <div style="display:flex;align-items:center;gap:10px">
     <select id="domain-select" class="domain-select"></select>
@@ -560,7 +561,7 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:22px}
           <span class="asst-iter-hint">每多一轮 = 多 2 次模型调用</span>
         </div>
         <div class="asst-chat" id="asst-chat">
-          <div class="asst-msg asst-welcome">你好！我是事件相机领域的 AI 助手。\n\n· 「针对当前论文」模式：就左侧选中的论文提问，如"这篇的方法是什么""创新点在哪"。\n· 「领域自由问答」模式：问我事件相机的任何问题，如"什么是时间表面"。\n\n先在下方展开「模型配置」填入 API Key 即可开始。</div>
+          <div class="asst-msg asst-welcome">你好！我是你的论文阅读 AI 助手。\n\n· 「针对当前论文」模式：就左侧选中的论文提问，如"这篇的方法是什么""创新点在哪"。\n· 「领域自由问答」模式：问我当前领域的任何问题，如"这个方向有哪些经典工作"。\n\n先在下方展开「模型配置」填入 API Key 即可开始。</div>
         </div>
         <div class="asst-input-row">
           <textarea id="asst-input" placeholder="输入问题…（Enter 发送，Shift+Enter 换行）"></textarea>
